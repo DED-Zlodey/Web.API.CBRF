@@ -36,34 +36,44 @@ public class CurrencySyncWorkerTests
     }
 
     /// <summary>
-    /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> корректно разбирает значение времени из настройки "CurrencySync:Time",
-    /// если оно задано в допустимом формате.
+    /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> корректно разбирает значение интервала из настройки "CurrencySync:IntervalHours",
+    /// если оно задано в допустимом формате (положительное целое число).
     /// </summary>
     /// <returns>Задача, представляющая результат теста.</returns>
     [Test]
     public void Constructor_WhenValidTimeFormat_ShouldParseCorrectly()
     {
         // Arrange
-        _mockConfiguration.Setup(c => c["CurrencySync:Time"]).Returns("14:30");
+        _mockConfiguration.Setup(c => c["CurrencySync:IntervalHours"]).Returns("6");
 
         // Act
         var worker = new CurrencySyncWorker(_mockServiceScopeFactory.Object, _mockLogger.Object, _mockConfiguration.Object);
 
         // Assert
         worker.Should().NotBeNull();
-        _mockConfiguration.Verify(c => c["CurrencySync:Time"], Times.Once);
+        _mockConfiguration.Verify(c => c["CurrencySync:IntervalHours"], Times.Once);
+        
+        // Проверяем, что предупреждение не было залогировано
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Never);
     }
 
     /// <summary>
-    /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> использует значение времени по умолчанию
-    /// и записывает предупреждение в лог, если формат времени в настройке "CurrencySync:Time" некорректен.
+    /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> использует значение интервала по умолчанию (2 часа)
+    /// и записывает предупреждение в лог, если формат интервала в настройке "CurrencySync:IntervalHours" некорректен.
     /// </summary>
     /// <returns>Задача, представляющая результат теста.</returns>
     [Test]
     public void Constructor_WhenInvalidTimeFormat_ShouldUseDefaultAndLogWarning()
     {
         // Arrange
-        _mockConfiguration.Setup(c => c["CurrencySync:Time"]).Returns("invalid-time");
+        _mockConfiguration.Setup(c => c["CurrencySync:IntervalHours"]).Returns("invalid-number");
 
         // Act
         var worker = new CurrencySyncWorker(_mockServiceScopeFactory.Object, _mockLogger.Object, _mockConfiguration.Object);
@@ -76,28 +86,37 @@ public class CurrencySyncWorkerTests
             x => x.Log(
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Invalid CurrencySync:Time format")),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Invalid or missing CurrencySync:IntervalHours")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
     }
 
     /// <summary>
-    /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> использует значение времени по умолчанию
-    /// (полночь), если настройка времени синхронизации отсутствует в конфигурации.
+    /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> использует значение интервала по умолчанию
+    /// (2 часа), если настройка интервала синхронизации отсутствует в конфигурации.
     /// </summary>
     /// <returns>Задача, представляющая результат теста.</returns>
     [Test]
     public void Constructor_WhenNoTimeConfigured_ShouldUseDefaultMidnight()
     {
         // Arrange
-        _mockConfiguration.Setup(c => c["CurrencySync:Time"]).Returns((string?)null);
+        _mockConfiguration.Setup(c => c["CurrencySync:IntervalHours"]).Returns((string?)null);
 
         // Act
         var worker = new CurrencySyncWorker(_mockServiceScopeFactory.Object, _mockLogger.Object, _mockConfiguration.Object);
 
         // Assert
         worker.Should().NotBeNull();
+        // Проверяем, что было залогировано предупреждение об использовании значения по умолчанию
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Invalid or missing CurrencySync:IntervalHours")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     /// <summary>
@@ -109,7 +128,7 @@ public class CurrencySyncWorkerTests
     public async Task ExecuteAsync_WhenCancelled_ShouldStopGracefully()
     {
         // Arrange
-        _mockConfiguration.Setup(c => c["CurrencySync:Time"]).Returns("00:00");
+        _mockConfiguration.Setup(c => c["CurrencySync:IntervalHours"]).Returns("1");
         var worker = new CurrencySyncWorker(_mockServiceScopeFactory.Object, _mockLogger.Object, _mockConfiguration.Object);
         
         var cts = new CancellationTokenSource();
@@ -140,17 +159,17 @@ public class CurrencySyncWorkerTests
 
     /// <summary>
     /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> не выбрасывает исключения
-    /// при различных корректных значениях времени.
+    /// при различных корректных значениях интервала в часах.
     /// </summary>
-    /// <param name="time">Время, передаваемое в конфигурации, в формате HH:mm.</param>
+    /// <param name="hours">Количество часов, передаваемое в конфигурации.</param>
     [Test]
-    [TestCase("00:00")]
-    [TestCase("12:00")]
-    [TestCase("23:59")]
-    public void Constructor_WithVariousValidTimes_ShouldNotThrow(string time)
+    [TestCase("1")]
+    [TestCase("6")]
+    [TestCase("24")]
+    public void Constructor_WithVariousValidTimes_ShouldNotThrow(string hours)
     {
         // Arrange
-        _mockConfiguration.Setup(c => c["CurrencySync:Time"]).Returns(time);
+        _mockConfiguration.Setup(c => c["CurrencySync:IntervalHours"]).Returns(hours);
 
         // Act
         Action act = () =>
@@ -163,19 +182,19 @@ public class CurrencySyncWorkerTests
     }
 
     /// <summary>
-    /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> логирует запланированное время синхронизации,
+    /// Проверяет, что конструктор <see cref="CurrencySyncWorker"/> корректно создается с заданным интервалом синхронизации,
     /// используя конфигурацию, переданную через параметры.
     /// </summary>
     /// <remarks>
-    /// Предполагается, что время синхронизации задается в настройках через ключ "CurrencySync:Time".
-    /// Если ключ отсутствует или содержит некорректное значение, используется значение по умолчанию.
+    /// Предполагается, что интервал синхронизации задается в настройках через ключ "CurrencySync:IntervalHours".
+    /// Если ключ отсутствует или содержит некорректное значение, используется значение по умолчанию (2 часа).
     /// </remarks>
     [Test]
     public void Constructor_ShouldLogScheduledTime()
     {
         // Arrange
-        var expectedTime = "14:30";
-        _mockConfiguration.Setup(c => c["CurrencySync:Time"]).Returns(expectedTime);
+        var expectedHours = "8";
+        _mockConfiguration.Setup(c => c["CurrencySync:IntervalHours"]).Returns(expectedHours);
 
         // Act
         var worker = new CurrencySyncWorker(_mockServiceScopeFactory.Object, _mockLogger.Object, _mockConfiguration.Object);

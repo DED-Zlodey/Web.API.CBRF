@@ -21,17 +21,18 @@ public class CurrencySyncWorker : BackgroundService
     private readonly ILogger<CurrencySyncWorker> _logger;
 
     /// <summary>
-    /// Переменная, представляющая время синхронизации курсов валют в формате TimeSpan.
+    /// Переменная, представляющая интервал синхронизации курсов валют в формате TimeSpan.
     /// </summary>
     /// <remarks>
-    /// Значение считывается из конфигурации приложения по ключу "CurrencySync:Time".
-    /// Если значение недоступно или имеет неверный формат, используется значение по умолчанию (00:00).
-    /// Используется для вычисления расписания ежедневной синхронизации.
+    /// Значение считывается из конфигурации приложения по ключу "CurrencySync:IntervalHours".
+    /// Если значение недоступно или имеет неверный формат, используется значение по умолчанию (2 часа).
+    /// Используется для определения периодичности автоматической синхронизации курсов валют.
     /// </remarks>
     private readonly TimeSpan _syncTime;
 
+
     /// <summary>
-    /// Фоновый сервис для ежедневной синхронизации курсов валют.
+    /// Класс, представляющий фоновую службу для синхронизации курсов валют.
     /// </summary>
     public CurrencySyncWorker(IServiceScopeFactory serviceScopeFactory, ILogger<CurrencySyncWorker> logger,
         IConfiguration configuration)
@@ -39,15 +40,15 @@ public class CurrencySyncWorker : BackgroundService
         _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
 
-        var syncTimeString = configuration["CurrencySync:Time"] ?? "00:00";
-        if (TimeSpan.TryParse(syncTimeString, out var parsedTime))
+        var hoursStr = configuration["CurrencySync:IntervalHours"];
+        if (int.TryParse(hoursStr, out var hours) && hours > 0)
         {
-            _syncTime = parsedTime;
+            _syncTime = TimeSpan.FromHours(hours);
         }
         else
         {
-            _syncTime = TimeSpan.Zero;
-            _logger.LogWarning("{method} Invalid CurrencySync:Time format, using 00:00", "Constructor");
+            _syncTime = TimeSpan.FromHours(2);
+            _logger.LogWarning("{method} Invalid or missing CurrencySync:IntervalHours in config. Using default: 2 hours.", "Constructor");
         }
     }
 
@@ -58,47 +59,45 @@ public class CurrencySyncWorker : BackgroundService
     /// <returns>Объект Task, представляющий асинхронную операцию.</returns>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("{method} Currency Sync Worker started. Scheduled time: {time}",
+        _logger.LogInformation("{method} Currency Sync Worker started. Sync interval: {period}",
             nameof(ExecuteAsync), _syncTime);
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var now = DateTime.Now;
-            var scheduledTime = now.Date.Add(_syncTime);
-
-            // Если запланированное время уже прошло сегодня, планируем на завтра
-            if (now > scheduledTime)
-            {
-                scheduledTime = scheduledTime.AddDays(1);
-            }
-
-            var delay = scheduledTime - now;
-
-            _logger.LogInformation("{method} Next sync scheduled at {scheduledTime} (in {delay})",
-                nameof(ExecuteAsync), scheduledTime, delay);
-
             try
             {
-                await Task.Delay(delay, stoppingToken);
+                _logger.LogInformation("{method} Starting scheduled currency sync...", nameof(ExecuteAsync));
 
-                _logger.LogInformation("{method} Starting daily currency sync...", nameof(ExecuteAsync));
-
+                // Создаем скоуп, получаем сервис и выполняем работу
                 using (var scope = _serviceScopeFactory.CreateScope())
                 {
                     var service = scope.ServiceProvider.GetRequiredService<ICurrencyService>();
                     await service.SyncRatesForDateAsync(DateTime.UtcNow, stoppingToken);
                 }
 
-                _logger.LogInformation("{method} Sync completed successfully.", nameof(ExecuteAsync));
+                _logger.LogInformation("{method} Sync completed successfully. Next sync in {period}.", 
+                    nameof(ExecuteAsync), _syncTime);
             }
             catch (TaskCanceledException)
             {
-                _logger.LogInformation("{method} Currency Sync Worker is stopping.", nameof(ExecuteAsync));
+                // Нормальное завершение при остановке приложения
                 break;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "{method} Error occurred during currency sync.", nameof(ExecuteAsync));
+                _logger.LogError(ex, "{method} Error occurred during currency sync. Retrying in {period}.", 
+                    nameof(ExecuteAsync), _syncTime);
+            }
+
+            // Ждем указанный интервал перед следующим запуском
+            try 
+            {
+                await Task.Delay(_syncTime, stoppingToken);
+            }
+            catch (TaskCanceledException)
+            {
+                _logger.LogInformation("{method} Currency Sync Worker is stopping during delay.", nameof(ExecuteAsync));
+                break;
             }
         }
     }
