@@ -1,0 +1,11 @@
+@WebCBRFServiceAOT_HostAddress = http://localhost:5101
+
+GET {{WebCBRFServiceAOT_HostAddress}}/todos/
+Accept: application/json
+
+###
+
+GET {{WebCBRFServiceAOT_HostAddress}}/todos/1
+Accept: application/json
+
+###
