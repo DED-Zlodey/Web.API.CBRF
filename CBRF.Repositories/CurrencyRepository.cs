@@ -34,13 +34,8 @@ public class CurrencyRepository : ICurrencyRepository
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cts);
 
-        var result = new List<CurrencyRate>();
-
         try
         {
-            if (connection.State != System.Data.ConnectionState.Open)
-                await connection.OpenAsync(cts);
-
             await using var command = connection.CreateCommand();
             
             command.CommandText = """
@@ -49,11 +44,13 @@ public class CurrencyRepository : ICurrencyRepository
                                       WHERE "Date" = (SELECT MAX("Date") FROM currency_rates)
                                   """;
 
-            await using var reader = await command.ExecuteReaderAsync(cts);
+            await using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SequentialAccess, cts);
+
+            var result = new List<CurrencyRate>();
 
             while (await reader.ReadAsync(cts))
             {
-                var rate = new CurrencyRate
+                result.Add(new CurrencyRate
                 {
                     Id = reader.GetString(0),
                     CharCode = reader.IsDBNull(1) ? null : reader.GetString(1),
@@ -63,23 +60,16 @@ public class CurrencyRepository : ICurrencyRepository
                     NumCode = reader.GetInt32(5),
                     Value = reader.GetDecimal(6),
                     VunitRate = reader.GetDecimal(7)
-                };
-
-                result.Add(rate);
+                });
             }
+
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "{method} Error executing raw SQL via ADO.NET", nameof(GetAllCurrenciesAsync));
             throw;
         }
-        finally
-        {
-            if (connection.State == System.Data.ConnectionState.Open)
-                await connection.CloseAsync();
-        }
-
-        return result;
     }
     
     public async Task SaveRatesAsync(IEnumerable<CurrencyRate> rates, CancellationToken cts)
@@ -151,9 +141,6 @@ public class CurrencyRepository : ICurrencyRepository
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cts);
 
-        if (connection.State != System.Data.ConnectionState.Open)
-            await connection.OpenAsync(cts);
-
         await using var command = connection.CreateCommand();
         
         command.CommandText = """
@@ -169,7 +156,7 @@ public class CurrencyRepository : ICurrencyRepository
         p0.Value = numCode;
         command.Parameters.Add(p0);
 
-        await using var reader = await command.ExecuteReaderAsync(cts);
+        await using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SequentialAccess | System.Data.CommandBehavior.SingleRow, cts);
 
         if (await reader.ReadAsync(cts))
         {
@@ -194,9 +181,6 @@ public class CurrencyRepository : ICurrencyRepository
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cts);
 
-        if (connection.State != System.Data.ConnectionState.Open)
-            await connection.OpenAsync(cts);
-
         await using var command = connection.CreateCommand();
         
         command.CommandText = """
@@ -212,7 +196,7 @@ public class CurrencyRepository : ICurrencyRepository
         p0.Value = charCode;
         command.Parameters.Add(p0);
 
-        await using var reader = await command.ExecuteReaderAsync(cts);
+        await using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SequentialAccess | System.Data.CommandBehavior.SingleRow, cts);
 
         if (await reader.ReadAsync(cts))
         {
