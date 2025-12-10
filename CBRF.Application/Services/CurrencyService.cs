@@ -56,25 +56,23 @@ public class CurrencyService : ICurrencyService
     {
         try
         {
-            // 1. Формируем URL
             var dateStr = date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             var url = $"https://www.cbr.ru/scripts/XML_daily.asp?date_req={dateStr}";
-
-            // 2. Качаем байты (потому что GetStringAsync может налажать с кодировкой)
+            
             var bytes = await _httpClient.GetByteArrayAsync(url, ct);
 
-            // 3. Декодируем Windows-1251
+            // Декодируем Windows-1251
             var encoding = Encoding.GetEncoding("windows-1251");
             var xmlString = encoding.GetString(bytes);
 
-            // 4. Парсим XML через XDocument (LINQ to XML)
+            // Парсим XML через XDocument (LINQ to XML)
             var xdoc = XDocument.Parse(xmlString);
 
             // Получаем корневой элемент
             var root = xdoc.Element("ValCurs");
             if (root == null) throw new Exception("XML does not contain ValCurs root");
 
-            // Дата актуальности из XML (иногда отличается от запрошенной)
+            // Дата актуальности из XML
             var dateAttr = root.Attribute("Date")?.Value;
             var rateDate = DateOnly.ParseExact(dateAttr!, "dd.MM.yyyy", CultureInfo.InvariantCulture);
 
@@ -102,8 +100,7 @@ public class CurrencyService : ICurrencyService
             }
 
             _logger.LogInformation("Parsed {Count} rates for {Date}", rates.Count, rateDate);
-
-            // 5. Сохраняем в БД
+            
             await _currencyRepository.SaveRatesAsync(rates, ct);
         }
         catch (Exception ex)
@@ -116,9 +113,12 @@ public class CurrencyService : ICurrencyService
     public async Task<CurrencyRate?> GetCurrencyOrDefaultByCharCodeAsync(string charCode,
         CancellationToken cts = default)
     {
-        if (charCode.Length > 3 || string.IsNullOrWhiteSpace(charCode) || charCode.Length < 3)
+        if (charCode.Length != 3 || string.IsNullOrWhiteSpace(charCode))
             return null;
-        charCode = charCode.ToUpperInvariant();
+        charCode = string.Create(3, charCode, static (span, code) =>
+        {
+            code.AsSpan().ToUpperInvariant(span);
+        });
         return await _currencyRepository.GetCurrencyOrDefaultByCharCodeAsync(charCode, cts);
     }
 }

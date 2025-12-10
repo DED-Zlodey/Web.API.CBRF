@@ -25,6 +25,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\CBRF.Application\CBRF.Application.csproj" />
+      <ProjectReference Include="..\CBRF.Core\CBRF.Core.csproj" />
       <ProjectReference Include="..\CBRF.Repositories\CBRF.Repositories.csproj" />
     </ItemGroup>
 
