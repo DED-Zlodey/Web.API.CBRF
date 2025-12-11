@@ -101,15 +101,6 @@ public class CurrencyRepository : ICurrencyRepository
                                       """;
 
 
-                // Хелпер для добавления параметров
-                void AddParam(string name, object? value)
-                {
-                    var p = command.CreateParameter();
-                    p.ParameterName = name;
-                    p.Value = value ?? DBNull.Value;
-                    command.Parameters.Add(p);
-                }
-
                 AddParam("p0", rate.Id);
                 AddParam("p1", rate.NumCode);
                 AddParam("p2", rate.CharCode);
@@ -120,6 +111,16 @@ public class CurrencyRepository : ICurrencyRepository
                 AddParam("p7", rate.Date);
 
                 await command.ExecuteNonQueryAsync(cts);
+                continue;
+
+                // Хелпер для добавления параметров
+                void AddParam(string name, object? value)
+                {
+                    var p = command.CreateParameter();
+                    p.ParameterName = name;
+                    p.Value = value ?? DBNull.Value;
+                    command.Parameters.Add(p);
+                }
             }
 
             await transaction.CommitAsync(cts);
