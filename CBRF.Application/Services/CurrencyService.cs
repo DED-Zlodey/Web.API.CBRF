@@ -58,7 +58,7 @@ public class CurrencyService : ICurrencyService
         {
             var dateStr = date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             var url = $"https://www.cbr.ru/scripts/XML_daily.asp?date_req={dateStr}";
-            
+
             var bytes = await _httpClient.GetByteArrayAsync(url, ct);
 
             // Декодируем Windows-1251
@@ -100,7 +100,7 @@ public class CurrencyService : ICurrencyService
             }
 
             _logger.LogInformation("Parsed {Count} rates for {Date}", rates.Count, rateDate);
-            
+
             await _currencyRepository.SaveRatesAsync(rates, ct);
         }
         catch (Exception ex)
@@ -115,10 +115,7 @@ public class CurrencyService : ICurrencyService
     {
         if (charCode.Length != 3 || string.IsNullOrWhiteSpace(charCode))
             return null;
-        charCode = string.Create(3, charCode, static (span, code) =>
-        {
-            code.AsSpan().ToUpperInvariant(span);
-        });
+        charCode = string.Create(3, charCode, static (span, code) => { code.AsSpan().ToUpperInvariant(span); });
         return await _currencyRepository.GetCurrencyOrDefaultByCharCodeAsync(charCode, cts);
     }
 }
