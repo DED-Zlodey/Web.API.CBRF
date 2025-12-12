@@ -92,7 +92,7 @@ public class CurrencyServiceTests
     public async Task GetAllCurrenciesAsync_ShouldReturnAllCurrencies()
     {
         // Arrange
-        var expectedCurrencies = new List<CurrencyRate>
+        var expectedCurrencies = new CurrencyRate[]
         {
             new() { Id = "R01235", NumCode = 840, CharCode = "USD", Name = "Доллар США", Value = 75.5m, Nominal = 1, VunitRate = 75.5m },
             new() { Id = "R01239", NumCode = 978, CharCode = "EUR", Name = "Евро", Value = 90.0m, Nominal = 1, VunitRate = 90.0m }
@@ -124,7 +124,7 @@ public class CurrencyServiceTests
     {
         // Arrange
         _mockRepository.Setup(r => r.GetAllCurrenciesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<CurrencyRate>());
+            .ReturnsAsync([]);
 
         // Act
         var result = await _service.GetAllCurrenciesAsync();

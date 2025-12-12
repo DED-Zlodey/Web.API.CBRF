@@ -30,40 +30,61 @@ public class CurrencyRepository : ICurrencyRepository
         _logger = logger;
     }
 
-    public async Task<IEnumerable<CurrencyRate>> GetAllCurrenciesAsync(CancellationToken cts = default)
+    public async Task<CurrencyRate[]> GetAllCurrenciesAsync(CancellationToken cts = default)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cts);
 
         try
         {
             await using var command = connection.CreateCommand();
-            
+
             command.CommandText = """
-                                      SELECT "Id", "CharCode", "Date", "Name", "Nominal", "NumCode", "Value", "VunitRate"
-                                      FROM currency_rates 
-                                      WHERE "Date" = (SELECT MAX("Date") FROM currency_rates)
+                                      WITH latest_date AS (
+                                          SELECT MAX("Date") as max_date FROM currency_rates
+                                      ),
+                                      filtered_data AS (
+                                          SELECT "Id", "CharCode", "Date", "Name", "Nominal", "NumCode", "Value", "VunitRate"
+                                          FROM currency_rates 
+                                          WHERE "Date" = (SELECT max_date FROM latest_date)
+                                      )
+                                      SELECT 
+                                          (SELECT COUNT(*) FROM filtered_data) as total_count,
+                                          "Id", "CharCode", "Date", "Name", "Nominal", "NumCode", "Value", "VunitRate"
+                                      FROM filtered_data
                                   """;
 
-            await using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SequentialAccess, cts);
+            await using var reader =
+                await command.ExecuteReaderAsync(System.Data.CommandBehavior.SequentialAccess, cts);
 
-            var result = new List<CurrencyRate>();
+            CurrencyRate[]? result = null;
+            var index = 0;
 
             while (await reader.ReadAsync(cts))
             {
-                result.Add(new CurrencyRate
+                // При первой итерации создаем массив
+                if (result == null)
                 {
-                    Id = reader.GetString(0),
-                    CharCode = reader.IsDBNull(1) ? null : reader.GetString(1),
-                    Date = reader.GetFieldValue<DateOnly>(2),
-                    Name = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    Nominal = reader.GetInt32(4),
-                    NumCode = reader.GetInt32(5),
-                    Value = reader.GetDecimal(6),
-                    VunitRate = reader.GetDecimal(7)
-                });
+                    var count = reader.GetInt32(0);
+                    if (count == 0)
+                        return [];
+
+                    result = new CurrencyRate[count];
+                }
+
+                result[index++] = new CurrencyRate
+                {
+                    Id = reader.GetString(1),
+                    CharCode = reader.GetFieldValue<string?>(2),
+                    Date = reader.GetFieldValue<DateOnly>(3),
+                    Name = reader.GetFieldValue<string?>(4),
+                    Nominal = reader.GetInt32(5),
+                    NumCode = reader.GetInt32(6),
+                    Value = reader.GetDecimal(7),
+                    VunitRate = reader.GetDecimal(8)
+                };
             }
 
-            return result;
+            return result ?? [];
         }
         catch (Exception ex)
         {
@@ -71,7 +92,7 @@ public class CurrencyRepository : ICurrencyRepository
             throw;
         }
     }
-    
+
     public async Task SaveRatesAsync(IEnumerable<CurrencyRate> rates, CancellationToken cts)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cts);
@@ -143,7 +164,7 @@ public class CurrencyRepository : ICurrencyRepository
         await using var connection = await _dataSource.OpenConnectionAsync(cts);
 
         await using var command = connection.CreateCommand();
-        
+
         command.CommandText = """
                                   SELECT "Id", "CharCode", "Date", "Name", "Nominal", "NumCode", "Value", "VunitRate"
                                   FROM currency_rates 
@@ -157,7 +178,9 @@ public class CurrencyRepository : ICurrencyRepository
         p0.Value = numCode;
         command.Parameters.Add(p0);
 
-        await using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SequentialAccess | System.Data.CommandBehavior.SingleRow, cts);
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                System.Data.CommandBehavior.SequentialAccess | System.Data.CommandBehavior.SingleRow, cts);
 
         if (await reader.ReadAsync(cts))
         {
@@ -183,7 +206,7 @@ public class CurrencyRepository : ICurrencyRepository
         await using var connection = await _dataSource.OpenConnectionAsync(cts);
 
         await using var command = connection.CreateCommand();
-        
+
         command.CommandText = """
                                   SELECT "Id", "CharCode", "Date", "Name", "Nominal", "NumCode", "Value", "VunitRate"
                                   FROM currency_rates 
@@ -197,7 +220,9 @@ public class CurrencyRepository : ICurrencyRepository
         p0.Value = charCode;
         command.Parameters.Add(p0);
 
-        await using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SequentialAccess | System.Data.CommandBehavior.SingleRow, cts);
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                System.Data.CommandBehavior.SequentialAccess | System.Data.CommandBehavior.SingleRow, cts);
 
         if (await reader.ReadAsync(cts))
         {

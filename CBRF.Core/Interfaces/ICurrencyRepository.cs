@@ -11,7 +11,7 @@ public interface ICurrencyRepository
     /// <param name="cts">Токен отмены операции.</param>
     /// <returns>Коллекция объектов типа <see cref="CurrencyRate"/>, содержащая актуальные курсы валют.
     /// В случае ошибки возвращает пустую коллекцию.</returns>
-    Task<IEnumerable<CurrencyRate>> GetAllCurrenciesAsync(CancellationToken cts = default);
+    Task<CurrencyRate[]> GetAllCurrenciesAsync(CancellationToken cts = default);
 
     /// <summary>
     /// Асинхронно сохраняет предоставленные курсы валют в базу данных.
