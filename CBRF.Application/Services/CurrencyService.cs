@@ -92,6 +92,7 @@ public class CurrencyService : ICurrencyService
                     Name = element.Element("Name")?.Value,
                     Value = decimal.Parse(element.Element("Value")?.Value ?? "0", ruCulture),
                     VunitRate = decimal.Parse(element.Element("VunitRate")?.Value.Replace(",", ".") ?? "0",
+                        NumberStyles.Float,
                         CultureInfo.InvariantCulture),
                     Date = rateDate
                 };
