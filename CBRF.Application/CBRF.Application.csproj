@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\CBRF.Core\CBRF.Core.csproj" />
+      <ProjectReference Include="..\CBRF.Repositories\CBRF.Repositories.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -26,6 +27,7 @@
       <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.1" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
+      <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
     </ItemGroup>
 
 </Project>
